@@ -135,6 +135,34 @@ h1,h2,h3,h4{font-family:'Syne',sans-serif}
 .sus-del:hover{color:var(--red)}
 .sus-total-row{display:flex;justify-content:space-between;padding:8px 4px;font-size:13px;color:var(--muted);border-top:1px solid var(--border);margin-top:4px}
 .sus-total-val{font-family:'Syne',sans-serif;font-weight:700;color:var(--yellow)}
+/* NOMBRE CUENTA EDITABLE */
+.cc-name-wrap{display:flex;align-items:center;gap:6px}
+.cc-name-edit{background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;padding:0;opacity:0}
+.cc-top:hover .cc-name-edit{opacity:1}
+/* GASTOS FIJOS */
+.gf-section{margin-bottom:14px}
+.gf-title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.gf-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.gf-item{background:var(--s2);border-radius:12px;padding:10px 12px;margin-bottom:6px;border:1px solid var(--border);transition:border-color .2s}
+.gf-item.pagado{border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.04)}
+.gf-item-top{display:flex;align-items:center;gap:10px}
+.gf-check{width:20px;height:20px;border-radius:50%;border:2px solid var(--border);background:none;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;transition:all .2s}
+.gf-check.done{background:var(--green);border-color:var(--green);color:#fff}
+.gf-nombre-input{flex:1;background:transparent;border:none;color:var(--text);font-size:13px;font-family:'DM Sans';outline:none;padding:0}
+.gf-nombre-input::placeholder{color:var(--muted2)}
+.gf-ref{font-size:11px;color:var(--muted);white-space:nowrap}
+.gf-ref-input{width:90px;background:var(--s3);border:1px solid var(--border);border-radius:6px;padding:3px 6px;color:var(--text);font-size:11px;font-family:'DM Sans';outline:none;text-align:right}
+.gf-ref-input:focus{border-color:var(--accent)}
+.gf-pagado-row{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:8px}
+.gf-pagado-label{font-size:11px;color:var(--green)}
+.gf-pagado-val{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;color:var(--green)}
+.gf-del-btn{background:none;border:none;color:var(--muted2);cursor:pointer;font-size:12px;padding:2px 4px}
+.gf-del-btn:hover{color:var(--red)}
+/* NOTAS */
+.notas-section{margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.notas-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px}
+.notas-input{width:100%;background:var(--s2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-size:13px;font-family:'DM Sans';outline:none;resize:none;min-height:80px;line-height:1.5;transition:border-color .2s}
+.notas-input:focus{border-color:var(--accent)}
 /* FONDOS MIEMBROS */
 .fd-miembros{margin-top:12px;border-top:1px solid var(--border);padding-top:12px}
 .fd-miembro-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:10px;background:var(--s2);margin-bottom:6px;cursor:pointer;transition:background .2s}
@@ -479,9 +507,14 @@ let S = {
   year: 2026,
   month: 4, // 0-indexed, 4=Mayo
   cuentas: {
-    principal: { presupuesto: 3000000, banco: '', num: '', gastos: {} },
-    libre: { saldoInicial: 0, entradas: {}, salidas: {}, banco: '', num: '' },
-    suscripciones: { presupuesto: 200000, banco: '', num: '', gastos: {} }
+    principal: { nombre:'Principal', emoji:'💼', color:'var(--accent)', presupuesto: 3000000, banco: '', num: '', gastos: {},
+      gastosFijos:[
+        {id:1, nombre:'Tarjeta de crédito', valorRef:0},
+        {id:2, nombre:'Servicios', valorRef:110000},
+        {id:3, nombre:'Transporte', valorRef:200000}
+      ], notas:{} },
+    libre: { nombre:'Libre', emoji:'🌊', color:'var(--purple)', saldoInicial: 0, entradas: {}, banco: '', num: '', notas:{} },
+    suscripciones: { nombre:'Suscripciones', emoji:'💳', color:'var(--yellow)', presupuesto: 200000, banco: '', num: '', gastos:{}, gastosFijos:[], notas:{} }
   },
   fondos: [
     { id:'futuro', nombre:'Un Futuro', emoji:'✨', meta:10000000, acumulado:800000, acumuladoBase:800000, aporteMensual:100000, tipo:'conjunto',
@@ -536,7 +569,12 @@ function gastosDeKey(cuentaId,key){
   return S.gastos.filter(g=>g.cuenta===cuentaId&&`${g.year}-${g.mes}`===key);
 }
 function totalGastado(cuentaId){
-  return gastosDeKey(cuentaId,mesKey()).reduce((s,g)=>s+g.monto,0);
+  const key = mesKey();
+  const varTotal = gastosDeKey(cuentaId,key).reduce((s,g)=>s+g.monto,0);
+  const cu = S.cuentas[cuentaId];
+  const fijosPagados = (cu && cu.gastosFijosPagados && cu.gastosFijosPagados[key]) || {};
+  const fijosTotal = Object.values(fijosPagados).reduce((s,v)=>s+(v||0),0);
+  return varTotal + fijosTotal;
 }
 
 // ─── RENDER PRINCIPAL ─────────────────────────────────────
@@ -581,26 +619,64 @@ function renderResumen(){
 function renderCuentas(){
   const wrap = document.getElementById('cuentas-wrap');
   wrap.innerHTML = '';
-  renderCuentaCard('principal', '💼', 'Principal', 'Gastos fijos del mes', 'var(--accent)', wrap);
+  renderCuentaCard('principal', wrap);
   renderLibreCard(wrap);
-  renderCuentaCard('suscripciones', '💳', 'Suscripciones', 'Pagos digitales', 'var(--yellow)', wrap);
+  renderCuentaCard('suscripciones', wrap);
 }
 
-function renderCuentaCard(id, emoji, nombre, desc, color, wrap){
-  const c = S.cuentas[id];
-  const presupuesto = c.presupuesto||0;
-  const gastado = totalGastado(id);
+function renderCuentaCard(id, wrap){
+  const cu = S.cuentas[id];
+  const emoji = cu.emoji||'💼';
+  const nombre = cu.nombre||id;
+  const color = cu.color||'var(--accent)';
+  const presupuesto = cu.presupuesto||0;
+  const key = mesKey();
+
+  // Gastos variables del mes
+  const gastosVar = gastosDeKey(id, key);
+  const totalVar  = gastosVar.reduce((s,g)=>s+g.monto,0);
+
+  // Gastos fijos pagados del mes
+  const fijosPagados = (cu.gastosFijosPagados && cu.gastosFijosPagados[key]) || {};
+  const totalFijos = Object.values(fijosPagados).reduce((s,v)=>s+(v||0),0);
+
+  const gastado = totalVar + totalFijos;
   const disp = presupuesto - gastado;
   const p = pct(gastado, presupuesto);
-  const gastos = gastosDeKey(id, mesKey());
-  const isOpen = c._open;
+  const isOpen = cu._open;
+  const notas = (cu.notas && cu.notas[key]) || '';
 
-  const div = document.createElement('div');
-  div.className = 'cuenta-card'+(isOpen?' open':'');
-  div.addEventListener('click', e => { if(!e.target.closest('input,button,select,label,.cc-detail')) toggleCuenta(id) });
+  // Gastos fijos HTML
+  const gastosFijos = cu.gastosFijos || [];
+  const gfHTML = gastosFijos.map((gf,gi)=>{
+    const pagado = fijosPagados[gf.id] !== undefined;
+    const montoPagado = fijosPagados[gf.id] || 0;
+    return `
+    <div class="gf-item${pagado?' pagado':''}" id="gfi-${id}-${gf.id}">
+      <div class="gf-item-top">
+        <button class="gf-check${pagado?' done':''}" onclick="event.stopPropagation();toggleFijo('${id}',${gf.id},${gf.valorRef||0})">${pagado?'✓':''}</button>
+        <input class="gf-nombre-input" value="${gf.nombre}" placeholder="Nombre del gasto fijo"
+          onclick="event.stopPropagation()" onkeydown="event.stopPropagation()"
+          oninput="event.stopPropagation()"
+          onblur="event.stopPropagation();updateGastoFijo('${id}',${gf.id},'nombre',this.value)">
+        <input class="gf-ref-input" type="number" value="${gf.valorRef||''}" placeholder="Ref $"
+          onclick="event.stopPropagation()" onkeydown="event.stopPropagation()"
+          oninput="event.stopPropagation()"
+          onblur="event.stopPropagation();updateGastoFijo('${id}',${gf.id},'valorRef',+this.value)">
+        <button class="gf-del-btn" onclick="event.stopPropagation();delGastoFijo('${id}',${gf.id})">✕</button>
+      </div>
+      ${pagado?`
+      <div class="gf-pagado-row">
+        <span class="gf-pagado-label">✅ Pagado:</span>
+        <span class="gf-pagado-val">${fmt(montoPagado)}</span>
+        <button onclick="event.stopPropagation();quitarFijo('${id}',${gf.id})" style="background:none;border:none;color:var(--muted);font-size:11px;cursor:pointer;margin-left:auto">Quitar</button>
+      </div>`:''}
+    </div>`;
+  }).join('');
 
-  const gastosHTML = gastos.length
-    ? gastos.map(g=>`
+  // Gastos variables HTML
+  const gastosVarHTML = gastosVar.length
+    ? gastosVar.map(g=>`
       <div class="gasto-row">
         <span class="gr-left">${g.nombre} <span style="font-size:10px;color:var(--muted2)">${g.cat||''}</span></span>
         <div class="gr-right">
@@ -608,16 +684,23 @@ function renderCuentaCard(id, emoji, nombre, desc, color, wrap){
           <button class="gr-del" onclick="event.stopPropagation();delGasto(${g.id})">✕</button>
         </div>
       </div>`).join('')
-    : '<div class="empty-msg">Sin gastos registrados este mes</div>';
+    : '';
+
+  const div = document.createElement('div');
+  div.className = 'cuenta-card'+(isOpen?' open':'');
+  div.addEventListener('click', e => { if(!e.target.closest('input,button,select,label,.cc-detail,textarea')) toggleCuenta(id) });
 
   div.innerHTML = `
     <div class="cc-top">
       <div class="cc-left">
         <div class="cc-emoji">${emoji}</div>
         <div class="cc-info">
-          <div class="cc-name">${nombre}</div>
+          <div class="cc-name-wrap">
+            <div class="cc-name" id="ccname-${id}">${nombre}</div>
+            <button class="cc-name-edit" onclick="event.stopPropagation();editNombreCuenta('${id}')" title="Editar nombre">✏️</button>
+          </div>
           <div class="cc-bank">
-            ${c.banco ? `🏦 ${c.banco}${c.num?' · '+c.num:''}` : 'Sin banco asignado'}
+            ${cu.banco ? `🏦 ${cu.banco}${cu.num?' · '+cu.num:''}` : 'Sin banco asignado'}
             <button class="cc-bank-edit" onclick="event.stopPropagation();openBanco('${id}')">editar</button>
           </div>
         </div>
@@ -639,22 +722,41 @@ function renderCuentaCard(id, emoji, nombre, desc, color, wrap){
         <div class="det-cfg-item">
           <label>Presupuesto (COP)</label>
           <input type="number" value="${presupuesto}"
-            onclick="event.stopPropagation()"
-            onkeydown="event.stopPropagation()"
+            onclick="event.stopPropagation()" onkeydown="event.stopPropagation()"
             oninput="event.stopPropagation();savePres('${id}',this.value)"
             onblur="event.stopPropagation();savePres('${id}',this.value);renderResumen()">
         </div>
         <div class="det-cfg-item">
           <label>Banco</label>
-          <input value="${c.banco||''}" placeholder="Nequi, Daviplata..."
-            onclick="event.stopPropagation()"
-            onkeydown="event.stopPropagation()"
-            oninput="event.stopPropagation()"
+          <input value="${cu.banco||''}" placeholder="Nequi, Daviplata..."
+            onclick="event.stopPropagation()" onkeydown="event.stopPropagation()" oninput="event.stopPropagation()"
             onblur="event.stopPropagation();S.cuentas['${id}'].banco=this.value;save()">
         </div>
       </div>
-      <div class="gastos-list">${gastosHTML}</div>
-      <button class="add-btn" onclick="event.stopPropagation();openModalCuenta('${id}')">+ Agregar gasto</button>
+
+      ${gastosFijos.length||id==='principal'||id==='suscripciones'?`
+      <div class="gf-section">
+        <div class="gf-title-row">
+          <span class="gf-title">📌 Gastos Fijos</span>
+          <span style="font-size:11px;color:var(--muted)">Fijos: ${fmt(totalFijos)} · Var: ${fmt(totalVar)}</span>
+        </div>
+        ${gfHTML}
+        <button class="add-btn" onclick="event.stopPropagation();addGastoFijo('${id}')">+ Agregar gasto fijo</button>
+      </div>`:''}
+
+      <div class="gastos-list">
+        ${gastosVar.length?`<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Gastos variables</div>`:''}
+        ${gastosVarHTML}
+      </div>
+      <button class="add-btn" onclick="event.stopPropagation();openModalCuenta('${id}')">+ Agregar gasto variable</button>
+
+      <div class="notas-section">
+        <div class="notas-label">📝 Notas del mes</div>
+        <textarea class="notas-input" placeholder="Anotaciones, recordatorios..."
+          onclick="event.stopPropagation()" onkeydown="event.stopPropagation()"
+          oninput="event.stopPropagation();saveNota('${id}',this.value)"
+          >${notas}</textarea>
+      </div>
     </div>`;
   wrap.appendChild(div);
 }
@@ -691,7 +793,10 @@ function renderLibreCard(wrap){
       <div class="cc-left">
         <div class="cc-emoji">🌊</div>
         <div class="cc-info">
-          <div class="cc-name">Libre</div>
+          <div class="cc-name-wrap">
+            <div class="cc-name">${S.cuentas.libre.nombre||'Libre'}</div>
+            <button class="cc-name-edit" onclick="event.stopPropagation();editNombreCuenta('libre')" title="Editar nombre">✏️</button>
+          </div>
           <div class="cc-bank">
             ${c.banco?`🏦 ${c.banco}${c.num?' · '+c.num:''}`:'Sin banco asignado'}
             <button class="cc-bank-edit" onclick="event.stopPropagation();openBanco('libre')">editar</button>
@@ -737,6 +842,13 @@ function renderLibreCard(wrap){
       </div>
       <div class="gastos-list">${gastosHTML||'<div class="empty-msg">Sin salidas registradas</div>'}</div>
       <button class="add-btn" onclick="event.stopPropagation();openModalCuenta('libre')">+ Registrar salida</button>
+      <div class="notas-section">
+        <div class="notas-label">📝 Notas del mes</div>
+        <textarea class="notas-input" placeholder="Anotaciones, recordatorios..."
+          onclick="event.stopPropagation()" onkeydown="event.stopPropagation()"
+          oninput="event.stopPropagation();saveNota('libre',this.value)"
+          >${(S.cuentas.libre.notas&&S.cuentas.libre.notas[key])||''}</textarea>
+      </div>
     </div>`;
   wrap.appendChild(div);
 }
@@ -753,6 +865,102 @@ function toggleCuenta(id){
   const c = id==='libre'?S.cuentas.libre:S.cuentas[id];
   c._open = !c._open;
   render();
+}
+
+// ─── GASTOS FIJOS ────────────────────────────────────────
+let _gfIdCounter = 100;
+
+function addGastoFijo(id){
+  if(!S.cuentas[id].gastosFijos) S.cuentas[id].gastosFijos=[];
+  S.cuentas[id].gastosFijos.push({id:++_gfIdCounter, nombre:'', valorRef:0});
+  save(); renderCuentas();
+}
+
+function updateGastoFijo(id, gfId, campo, valor){
+  const gf = (S.cuentas[id].gastosFijos||[]).find(x=>x.id===gfId);
+  if(gf){ gf[campo]=valor; save(); }
+}
+
+async function delGastoFijo(id, gfId){
+  const gf = (S.cuentas[id].gastosFijos||[]).find(x=>x.id===gfId);
+  if(!gf) return;
+  const ok = await dlgConfirm('Eliminar gasto fijo', '"'+gf.nombre+'" se eliminará de la lista de fijos.','Eliminar',true);
+  if(!ok) return;
+  S.cuentas[id].gastosFijos = S.cuentas[id].gastosFijos.filter(x=>x.id!==gfId);
+  // También quitar si estaba pagado
+  const key = mesKey();
+  if(S.cuentas[id].gastosFijosPagados && S.cuentas[id].gastosFijosPagados[key])
+    delete S.cuentas[id].gastosFijosPagados[key][gfId];
+  save(); renderCuentas(); renderResumen();
+}
+
+async function toggleFijo(id, gfId, valorRef){
+  const key = mesKey();
+  if(!S.cuentas[id].gastosFijosPagados) S.cuentas[id].gastosFijosPagados={};
+  if(!S.cuentas[id].gastosFijosPagados[key]) S.cuentas[id].gastosFijosPagados[key]={};
+  const yaPagado = S.cuentas[id].gastosFijosPagados[key][gfId]!==undefined;
+  if(yaPagado){
+    const ok = await dlgConfirm('Quitar pago','¿Marcar este gasto fijo como no pagado?','Quitar',true);
+    if(!ok) return;
+    delete S.cuentas[id].gastosFijosPagados[key][gfId];
+    save(); renderCuentas(); renderResumen();
+  } else {
+    const input = await dlgPrompt('¿Cuánto pagaste?','Valor de referencia: '+fmt(valorRef),valorRef||'',fmt(valorRef||0));
+    if(input===null||input==='') return;
+    const monto = parseFloat(input)||0;
+    if(monto<=0){ toast('⚠️ El monto debe ser mayor a 0'); return; }
+    S.cuentas[id].gastosFijosPagados[key][gfId] = monto;
+    save(); renderCuentas(); renderResumen();
+    toast('✅ Gasto fijo registrado: '+fmt(monto));
+  }
+}
+
+async function quitarFijo(id, gfId){
+  const key = mesKey();
+  if(!S.cuentas[id].gastosFijosPagados||!S.cuentas[id].gastosFijosPagados[key]) return;
+  const ok = await dlgConfirm('Quitar pago','¿Desmarcar este gasto como pagado?','Quitar',true);
+  if(!ok) return;
+  delete S.cuentas[id].gastosFijosPagados[key][gfId];
+  save(); renderCuentas(); renderResumen();
+}
+
+// ─── NOMBRE CUENTA ────────────────────────────────────────
+async function editNombreCuenta(id){
+  const actual = S.cuentas[id].nombre||id;
+  const input = await dlgPromptText('Editar nombre','Nombre de la cuenta:',actual);
+  if(input===null||input.trim()==='') return;
+  S.cuentas[id].nombre = input.trim();
+  save(); renderCuentas();
+}
+
+function dlgPromptText(title, msg, defaultVal=''){
+  return new Promise(resolve=>{
+    document.getElementById('dlg-title').textContent = title;
+    document.getElementById('dlg-msg').textContent = msg;
+    const inp = document.getElementById('dlg-input');
+    inp.style.display = 'block';
+    inp.type = 'text';
+    inp.value = defaultVal;
+    inp.placeholder = '';
+    inp.onkeydown = e=>{ e.stopPropagation(); if(e.key==='Enter') document.getElementById('dlg-ok-btn').click(); };
+    const okBtn = document.getElementById('dlg-ok-btn');
+    okBtn.textContent = 'Guardar';
+    okBtn.className = 'dlg-ok primary';
+    document.getElementById('dlg-btns').className = 'dlg-btns';
+    document.getElementById('dlg-cancel-btn').style.display = '';
+    okBtn.onclick = ()=>{ document.getElementById('dlg').classList.remove('on'); resolve(inp.value); };
+    document.getElementById('dlg-cancel-btn').onclick = ()=>{ document.getElementById('dlg').classList.remove('on'); resolve(null); };
+    document.getElementById('dlg').classList.add('on');
+    setTimeout(()=>inp.focus(),100);
+  });
+}
+
+// ─── NOTAS ───────────────────────────────────────────────
+function saveNota(id, texto){
+  const key = mesKey();
+  if(!S.cuentas[id].notas) S.cuentas[id].notas={};
+  S.cuentas[id].notas[key] = texto;
+  save();
 }
 
 // ─── BANCO ───────────────────────────────────────────────
