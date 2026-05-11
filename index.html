@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Sorpresa</title>
+<title>Invitación Día de la Madre</title>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400;1,600&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Great+Vibes&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -417,9 +417,50 @@ body {
   animation: revealUp 0.6s ease 1.0s forwards;
 }
 .close-btn:hover { background: rgba(201,169,110,0.1); color: var(--gold); border-color: var(--gold); }
+/* ── MUSIC BUTTON ── */
+.music-btn {
+  position: fixed;
+  bottom: 22px; right: 18px;
+  z-index: 200;
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  background: rgba(107,26,42,0.85);
+  border: 1px solid rgba(201,169,110,0.5);
+  color: var(--gold-light);
+  font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  opacity: 0;
+  transform: scale(0);
+  transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.2,0.8,0.3,1), background 0.2s;
+  -webkit-tap-highlight-color: transparent;
+}
+.music-btn.visible { opacity: 1; transform: scale(1); }
+.music-btn:hover   { background: rgba(139,42,62,0.95); }
+.music-btn.muted   { opacity: 0.5; }
+
+/* Hidden YouTube iframe */
+#yt-player {
+  position: fixed;
+  top: -9999px; left: -9999px;
+  width: 1px; height: 1px;
+  pointer-events: none;
+  visibility: hidden;
+}
 </style>
 </head>
 <body>
+
+<!-- YouTube iframe (hidden, audio only) -->
+<iframe id="yt-player"
+  src="about:blank"
+  allow="autoplay"
+  frameborder="0">
+</iframe>
+
+<!-- Music toggle button -->
+<button class="music-btn" id="musicBtn" onclick="toggleMusic()" title="Música">🎵</button>
 
 <div class="petals-container" id="petals"></div>
 
@@ -606,12 +647,40 @@ body {
     petalContainer.appendChild(p);
   }
 
+  // ── MUSIC ──
+  const VIDEO_ID   = '-zbyjQdFXjM';
+  let musicStarted = false;
+  let isMuted      = false;
+
+  function startMusic() {
+    if (musicStarted) return;
+    musicStarted = true;
+    const iframe = document.getElementById('yt-player');
+    iframe.src = `https://www.youtube.com/embed/${VIDEO_ID}?autoplay=1&mute=0&loop=1&playlist=${VIDEO_ID}&controls=0&rel=0&enablejsapi=1`;
+    setTimeout(() => {
+      document.getElementById('musicBtn').classList.add('visible');
+    }, 1800);
+  }
+
+  function toggleMusic() {
+    const btn    = document.getElementById('musicBtn');
+    const iframe = document.getElementById('yt-player');
+    isMuted = !isMuted;
+    iframe.contentWindow.postMessage(
+      JSON.stringify({ event: 'command', func: isMuted ? 'mute' : 'unMute' }), '*'
+    );
+    btn.textContent = isMuted ? '🔇' : '🎵';
+    btn.classList.toggle('muted', isMuted);
+  }
+
   // ── ENVELOPE LOGIC ──
   let isOpen = false;
 
   function openEnvelope() {
     if (isOpen) return;
     isOpen = true;
+
+    startMusic();
 
     const hint = document.getElementById('tapHint');
     hint.style.opacity = '0';
